@@ -1,0 +1,68 @@
+#+OPTIONS: ^:nil tags:nil
+
+* About
+
+Misc CSS commands.
+
+* Table of Contents                                       :TOC_2_gh:QUOTE:
+#+BEGIN_QUOTE
+- [[#about][About]]
+- [[#requirements][Requirements]]
+- [[#installation][Installation]]
+  - [[#with-use-package-and-straightel][With use-package and straight.el]]
+  - [[#manual-installation][Manual installation]]
+- [[#usage][Usage]]
+  - [[#commands][Commands]]
+  - [[#customization][Customization]]
+#+END_QUOTE
+
+* Requirements
+
+| Name  | Version |
+|-------+---------|
+| Emacs |    25.1 |
+
+
+* Installation
+
+** With use-package and straight.el
+#+begin_src elisp :eval no
+(use-package css-extra
+  :straight (css-extra
+             :repo "KarimAziev/css-extra"
+             :type git
+             :host github)
+  :commands (css-extra-cycle-rem-to-px
+             css-extra-rem-to-px
+             css-extra-px-to-rem))
+#+end_src
+
+** Manual installation
+
+Download the source code and put it wherever you like, e.g. into =~/.emacs.d/css-extra/=
+
+#+begin_src shell :eval no
+git clone https://github.com/KarimAziev/css-extra.git ~/.emacs.d/css-extra/
+#+end_src
+
+Add the downloaded directory to the load path:
+
+#+begin_src elisp :eval no
+(add-to-list 'load-path "~/.emacs.d/css-extra/")
+(require 'css-extra)
+#+end_src
+
+* Usage
+
+** Commands
+
+**** ~css-extra-cycle-rem-to-px~
+Cycle between pixels and rems at point. Base size of fonts is taken from the variable =css-extra-base-font-size=.
+**** ~css-extra-rem-to-px~  (&optional use-confirm)
+Convert rems to pixels in the current buffer. Base size of fonts is taken from the variable =css-extra-base-font-size=. If =use-confirm= is non nil, prompt user about every replacement.
+**** ~css-extra-px-to-rem~  (&optional use-confirm)
+Convert pixels to rems in the current buffer. Base size of fonts is taken from the variable =css-extra-base-font-size=. If =use-confirm= is non nil, prompt user about every replacement.
+** Customization
+
+**** ~css-extra-base-font-size~
+Base font size declared on html element in pixels. It is used for conversion between pixels to rems, and rems to pixels.
