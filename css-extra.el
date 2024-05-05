@@ -6,7 +6,7 @@
 ;; URL: https://github.com/KarimAziev/css-extra
 ;; Version: 0.1.0
 ;; Keywords: matching
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "29.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
@@ -95,19 +95,20 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'.
 If USE-CONFIRM is non nil, prompt user about every replacement."
   (save-excursion
     (goto-char (point-max))
-    (while (re-search-backward regex nil t
-                               1)
-      (let ((beg (match-beginning 0))
-            (end (match-end 0))
-            (value (match-string-no-properties 0))
-            (rep))
-        (setq rep (css-extra--cycle-rem-to-px
-                   value
-                   css-extra-base-font-size))
-        (if use-confirm
-            (css-extra-confirm-and-replace-region
-             beg end rep)
-          (replace-region-contents beg end (lambda () rep)))))))
+    (with-undo-amalgamate
+      (while (re-search-backward regex nil t
+                                 1)
+        (let ((beg (match-beginning 0))
+              (end (match-end 0))
+              (value (match-string-no-properties 0))
+              (rep))
+          (setq rep (css-extra--cycle-rem-to-px
+                     value
+                     css-extra-base-font-size))
+          (if use-confirm
+              (css-extra-confirm-and-replace-region
+               beg end rep)
+            (replace-region-contents beg end (lambda () rep))))))))
 
 ;;;###autoload
 (defun css-extra-px-to-rem (&optional use-confirm)
