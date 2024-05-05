@@ -153,6 +153,103 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'."
     (when value
       (replace-region-contents beg end (lambda () value)))))
 
+(defun css-extra--skip-whitespace ()
+  "Skip whitespace and comments on the current line."
+  (skip-chars-forward "\s\t")
+  (let ((comm-start))
+    (while (setq comm-start (or (and (nth 4 (syntax-ppss (point)))
+                                     (nth 8 (syntax-ppss (point))))
+                                (when (looking-at (regexp-quote comment-start))
+                                  (point))))
+      (goto-char comm-start)
+      (forward-comment 1)
+      (skip-chars-forward "\s\t"))))
+
+(defun css-extra--get-var-cell ()
+  "Extract CSS property and value from current line as a pair."
+  (let ((prop)
+        (value))
+    (save-excursion
+      (goto-char (line-beginning-position))
+      (css-extra--skip-whitespace)
+      (when-let* ((line-end (line-end-position))
+                  (prop-beg (point))
+                  (prop-end (re-search-forward ":" line-end t 1)))
+        (setq prop (buffer-substring-no-properties prop-beg (1- prop-end)))
+        (css-extra--skip-whitespace)
+        (when-let* ((beg (point))
+                    (end (re-search-forward ";" line-end t 1)))
+          (setq value (buffer-substring-no-properties beg (1- end))))))
+    (cons prop value)))
+
+;;;###autoload
+(defun css-extra-copy-colors-as-vars ()
+  "Copy CSS colors as variables to clipboard."
+  (interactive)
+  (let ((colors)
+        (var-names)
+        (alist)
+        (result))
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward "\\(#[a-z0-9]+\\);" nil t
+                                1)
+        (let ((value (match-string-no-properties 1)))
+          (unless (or (nth 4 (syntax-ppss (point)))
+                      (member value colors))
+            (when-let* ((var-prefix (car (split-string
+                                          (buffer-substring-no-properties
+                                           (line-beginning-position)
+                                           (line-end-position))
+                                          "[\s\t:]" t)))
+                        (var-name
+                         (pcase var-prefix
+                           ((or "background" "background-color") "bg-color")
+                           ((guard (not (string-match-p "color" var-prefix)))
+                            (concat var-prefix "-color"))
+                           (_ var-prefix)))
+                        (var
+                         (unless (string-prefix-p "--" var-name)
+                           (concat "--" var-name))))
+              (push value colors)
+              (if-let ((cell (assoc-string var alist)))
+                  (setcdr cell (append (cdr cell)
+                                       (list value)))
+                (push (list var value) alist))
+              (push var var-names))))))
+    (pcase-dolist (`(,var . ,colors) alist)
+      (let ((lines (seq-map-indexed (lambda (c i)
+                                      (format "%s-%d: %s;" var i c))
+                                    colors)))
+        (setq result (append result lines))))
+    (kill-new (string-join result "\n"))
+    (message "Copied")
+    result))
+
+;;;###autoload
+(defun css-extra-use-var-name-at-point ()
+  "Replace value occurrences with CSS variable reference in buffer."
+  (interactive)
+  (pcase-let ((`(,var . ,value)
+               (css-extra--get-var-cell))
+              (occurences))
+    (when (and var value)
+      (save-excursion
+        (forward-line 1)
+        ;; (goto-char (point-max))
+        (let ((regex (regexp-opt (list value)))
+              (rep (format "var(%s)" var)))
+          (with-undo-amalgamate
+            (while (re-search-forward regex nil t 1)
+              (let ((beg (match-beginning 0))
+                    (end (match-end 0)))
+                (unless (looking-at "[a-z0-9]")
+                  (delete-region beg end)
+                  (insert rep)))
+              (setq occurences (1+ (or occurences 0)))))))
+      (when occurences
+        (message "Replaced %d occurences" occurences)))))
+
 
 
 (provide 'css-extra)
