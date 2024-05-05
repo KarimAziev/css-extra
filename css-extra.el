@@ -125,7 +125,7 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'.
 If USE-CONFIRM is non nil, prompt user about every replacement."
   (interactive "P")
   (css-extra-convert-px-to-rem-by-regex
-   "\\_<\\(\\([-]?[0-9]+\\([\\.]?[0-9]?+\\)\\)rem\\)\\_>"
+   "\\_<\\([-]?[0-9]+\\(?:[\\.]?[0-9]+\\)?rem\\)\\_>"
    use-confirm))
 
 ;;;###autoload
@@ -136,10 +136,10 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'."
   (pcase-let* ((`(,beg . ,end)
                 (save-excursion
                   (let* ((a (save-excursion
-                              (skip-chars-forward "a-z-0-9\\.")
+                              (skip-chars-forward "-a-z0-9.")
                               (point)))
                          (b (save-excursion
-                              (skip-chars-backward "a-z-0-9\\.")
+                              (skip-chars-backward "-a-z0-9.")
                               (point))))
                     (if (string-blank-p (buffer-substring-no-properties a b))
                         nil
