@@ -32,6 +32,8 @@
 
 (require 'subr-x)
 
+(declare-function lsp "lsp-mode")
+
 (defcustom css-extra-base-font-size 16
   "Base font size declared on html element in pixels.
 It is used for conversion between pixels to rems, and rems to pixels."
@@ -250,7 +252,18 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'."
       (when occurences
         (message "Replaced %d occurences" occurences)))))
 
-
+(defun css-extra-tailwindcss-init ()
+  "Initialize LSP if a Tailwind config exists in the current project."
+  (require 'project)
+  (when-let ((proj
+              (when-let ((project (ignore-errors (project-current))))
+                (if (fboundp 'project-root)
+                    (project-root project)
+                  (with-no-warnings
+                    (car (project-roots project)))))))
+    (when (file-exists-p (expand-file-name "tailwind.config.js" proj))
+      (require 'lsp)
+      (lsp))))
 
 (provide 'css-extra)
 ;;; css-extra.el ends here
