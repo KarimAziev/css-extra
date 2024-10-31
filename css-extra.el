@@ -31,6 +31,7 @@
 ;;; Code:
 
 (require 'subr-x)
+(require 'color)
 
 (declare-function lsp "lsp-mode")
 
@@ -264,6 +265,81 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'."
     (when (file-exists-p (expand-file-name "tailwind.config.js" proj))
       (require 'lsp)
       (lsp))))
+
+(defun css-extra-get-0x-face (hex)
+     "Return a face property list with background and foreground colors from HEX.
+
+   Argument HEX is a string representing a hexadecimal color code."
+     (let* ((r (string-to-number (substring hex 2 4) 16))
+            (g (string-to-number (substring hex 4 6) 16))
+            (b (string-to-number (substring hex 6 8) 16))
+            (color (color-rgb-to-hex (/ r 255.0)
+                                     (/ g 255.0)
+                                     (/ b 255.0)))
+            (result `(:background ,color
+                      :foreground
+                      ,(if (> (+ (* 0.299 r)
+                               (* 0.587 g)
+                               (* 0.114 b))
+                            128)
+                         "black"
+                       "white"))))
+       result))
+
+(defvar css-extra-hexcolour-keywords
+  '(("\\<0x[0-9A-Fa-f]\\{6\\}\\>"
+     (0
+      (let ((hex (match-string-no-properties 0)))
+       (css-extra-get-0x-face hex))
+      prepend))))
+
+
+(defun css-extra--read-major-mode ()
+  "Read a mode from the list of major modes using completion."
+  (let ((modes (delete-dups (seq-filter
+                             #'symbolp
+                             (mapcar #'cdr auto-mode-alist)))))
+    (intern (completing-read "Mode: " modes))))
+
+(defvar css-extra--major-modes nil)
+
+;;;###autoload
+(defun css-extra-0x-hex-font-lock-keywords-add (&optional mode)
+  "Add jsdoc font lock keywords to MODE."
+  (interactive (list (css-extra--read-major-mode)))
+  (css-extra-0x-hex-font-lock-keywords-remove mode)
+  (font-lock-add-keywords
+   mode
+   css-extra-hexcolour-keywords)
+  (add-to-list 'css-extra--major-modes mode))
+
+;;;###autoload
+(defun css-extra-0x-hex-font-lock-keywords-remove (&optional mode)
+  "Remove jsdoc font lock keywords to MODE."
+  (interactive (list
+                (when css-extra--major-modes
+                  (intern
+                   (completing-read "Mode:" css-extra--major-modes)))))
+  (font-lock-remove-keywords mode
+                             css-extra-hexcolour-keywords)
+  (setq css-extra--major-modes (delq mode css-extra--major-modes)))
+
+;;;###autoload
+(defun css-extra-fontify ()
+  "Highlight hexadecimal color codes in the buffer with corresponding colors."
+  (interactive)
+  (with-silent-modifications
+    (while (re-search-forward "\\<0x[0-9A-Fa-f]\\{6\\}\\>" nil t 1)
+      (let ((beg (match-beginning 0))
+            (end (match-end 0)))
+        (put-text-property beg
+                           end
+                           'face (css-extra-get-0x-face
+                                  (buffer-substring-no-properties
+                                   beg end)))))))
+
+
+
 
 (provide 'css-extra)
 ;;; css-extra.el ends here
