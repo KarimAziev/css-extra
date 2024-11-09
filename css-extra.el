@@ -46,7 +46,7 @@ It is used for conversion between pixels to rems, and rems to pixels."
 (defun css-extra-confirm-and-replace-region (beg end replacement)
   "Replace region between BEG and END with REPLACEMENT.
 REPLACEMENT should be a string, or an unary function that string or nil."
-  (when-let ((overlay (make-overlay beg end))
+  (when-let* ((overlay (make-overlay beg end))
              (rep (if (functionp replacement)
                       (funcall replacement)
                     replacement)))
@@ -215,7 +215,7 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'."
                          (unless (string-prefix-p "--" var-name)
                            (concat "--" var-name))))
               (push value colors)
-              (if-let ((cell (assoc-string var alist)))
+              (if-let* ((cell (assoc-string var alist)))
                   (setcdr cell (append (cdr cell)
                                        (list value)))
                 (push (list var value) alist))
@@ -256,8 +256,8 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'."
 (defun css-extra-tailwindcss-init ()
   "Initialize LSP if a Tailwind config exists in the current project."
   (require 'project)
-  (when-let ((proj
-              (when-let ((project (ignore-errors (project-current))))
+  (when-let* ((proj
+              (when-let* ((project (ignore-errors (project-current))))
                 (if (fboundp 'project-root)
                     (project-root project)
                   (with-no-warnings
