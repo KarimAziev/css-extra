@@ -34,6 +34,7 @@
 (require 'color)
 
 (declare-function lsp "lsp-mode")
+(declare-function json-read "json")
 
 (defcustom css-extra-base-font-size 16
   "Base font size declared on html element in pixels.
@@ -253,18 +254,126 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'."
       (when occurences
         (message "Replaced %d occurences" occurences)))))
 
+
+(defvar css-extra--hash (make-hash-table :test 'equal))
+(defvar json-object-type)
+(defvar json-array-type)
+(defvar json-null)
+(defvar json-false)
+
+(defun css-extra--json-read-buffer (&optional object-type array-type null-object
+                                              false-object)
+  "Parse JSON from buffer using specified types.
+
+Optional argument OBJECT-TYPE is the type used to represent objects; it can be
+`hash-table', `alist' or `plist'. It defaults to `alist'.
+
+Optional argument ARRAY-TYPE specifies which Lisp type is used to represent
+arrays; it can be `list' or `vector'. It defaults to `vector'.
+
+Optional argument NULL-OBJECT specifies which object to use to represent a JSON
+null value. It defaults to `:null'.
+
+Optional argument FALSE-OBJECT specifies which object to use to represent a JSON
+false value. It defaults to `:false'."
+  (if (and (fboundp 'json-parse-string)
+           (fboundp 'json-available-p)
+           (json-available-p))
+      (json-parse-buffer
+       :object-type (or object-type 'alist)
+       :array-type
+       (pcase array-type
+         ('list 'list)
+         ('vector 'array)
+         (_ 'array))
+       :null-object (or null-object :null)
+       :false-object (or false-object :false))
+    (require 'json)
+    (let ((json-object-type (or object-type 'alist))
+          (json-array-type
+           (pcase array-type
+             ('list 'list)
+             ('array 'vector)
+             (_ 'vector)))
+          (json-null (or null-object :null))
+          (json-false (or false-object :false)))
+      (json-read))))
+
+(defun css-extra--read-json (file &optional json-type)
+  "Parse JSON from FILE and cache it.
+
+Argument FILE is the path to the JSON file to read.
+
+Optional argument JSON-TYPE specifies the type used to represent objects in the
+returned JSON; it defaults to `alist'."
+  (condition-case nil
+      (let* ((json-object-type (or json-type 'alist))
+             (json-array-type 'list)
+             (cache (gethash (format "%s:%s" file json-object-type)
+                             css-extra--hash))
+             (cache-tick (and cache (plist-get cache :tick)))
+             (tick (file-attribute-modification-time
+                    (file-attributes
+                     file
+                     'string)))
+             (content-json))
+        (when (or (null cache)
+                  (not (equal tick cache-tick)))
+          (setq content-json
+                (with-temp-buffer
+                  (insert-file-contents file)
+                  (goto-char (point-min))
+                  (css-extra--json-read-buffer)))
+          (setq cache (list
+                       :tick tick
+                       :json content-json))
+          (puthash file cache css-extra--hash))
+        (plist-get cache :json))
+    (error (message "Could't read %s as json" file))))
+
+
 (defun css-extra-tailwindcss-init ()
   "Initialize LSP if a Tailwind config exists in the current project."
-  (require 'project)
-  (when-let* ((proj
-              (when-let* ((project (ignore-errors (project-current))))
-                (if (fboundp 'project-root)
-                    (project-root project)
-                  (with-no-warnings
-                    (car (project-roots project)))))))
-    (when (file-exists-p (expand-file-name "tailwind.config.js" proj))
-      (require 'lsp)
-      (lsp))))
+  (unless (file-remote-p default-directory)
+    (require 'project)
+    (when-let* ((proj
+                 (when-let* ((project (ignore-errors (project-current))))
+                   (if (fboundp 'project-root)
+                       (project-root project)
+                     (with-no-warnings
+                       (car (project-roots project)))))))
+      (when (or (file-exists-p (expand-file-name "tailwind.config.js" proj))
+                (let ((package-json-dir (locate-dominating-file
+                                         default-directory "package.json"))
+                      (node-modules-dir (locate-dominating-file
+                                         default-directory
+                                         "node_modules"))
+                      (package-json))
+                  (when (and package-json-dir
+                             (or (not node-modules-dir)
+                                 (not (file-in-directory-p default-directory
+                                                           (expand-file-name
+                                                            "node_modules"
+                                                            node-modules-dir)))))
+                    (setq package-json (css-extra--read-json
+                                        (expand-file-name "package.json"
+                                                          package-json-dir))))
+                  (when-let* ((tailwind
+                               (cdr
+                                (assq 'tailwindcss
+                                      (cdr
+                                       (assq
+                                        'dependencies
+                                        package-json)))))
+                              (tailwind-version
+                               (ignore-errors
+                                 (string-to-number (car-safe (split-string
+                                                              tailwind
+                                                              "[^0-9]"
+                                                              t))))))
+                    (>= tailwind-version 4))))
+        (require 'lsp)
+        (lsp)))))
 
 (defun css-extra-get-0x-face (hex)
      "Return a face property list with background and foreground colors from HEX.
@@ -337,8 +446,6 @@ Base size of fonts is taken from the variable `css-extra-base-font-size'."
                            'face (css-extra-get-0x-face
                                   (buffer-substring-no-properties
                                    beg end)))))))
-
-
 
 
 (provide 'css-extra)
